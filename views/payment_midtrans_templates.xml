@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <data>
+    <template id="midtrans_acquirer_button">
+      <form t-if="acquirer.midtrans_server_key" t-att-action="tx_url" method="post" target="_self">
+        <input type="hidden" name="csrf_token"
+            t-att-value="request.csrf_token()"/> 
+        <input type="hidden" name="amount" t-att-value="amount"/>
+        <input type="hidden" name="currency_id" t-att-value="currency.id"/>
+        <input type="hidden" name="partner_first_name"
+            t-att-value="partner_first_name"/>
+        <input type="hidden" name="partner_last_name"
+            t-att-value="partner_last_name"/>
+        <input type="hidden" name="partner_email" t-att-value="partner_email"/>
+        <input type="hidden" name="partner_phone" t-att-value="partner_phone"/>
+        <input type="hidden" name="billing_partner_first_name"
+            t-att-value="billing_partner_first_name"/>
+        <input type="hidden" name="billing_partner_last_name"
+            t-att-value="billing_partner_last_name"/>
+        <input type="hidden" name="billing_partner_email"
+            t-att-value="billing_partner_email"/>
+        <input type="hidden" name="billing_partner_phone"
+            t-att-value="billing_partner_phone"/>
+        <input type="hidden" name="billing_partner_address"
+            t-att-value="billing_partner_address"/>
+        <input type="hidden" name="billing_partner_country_code"
+            t-att-value="billing_partner_country_code"/>
+        <input type="hidden" name="billing_partner_postal_code"
+            t-att-value="billing_partner_postal_code"/>
+        <input type="hidden" name="billing_partner_city"
+            t-att-value="billing_partner_city"/>
+
+        <button type="submit" width="100px" t-att-class="submit_class" id="midtrans-payment-button">
+          <img t-if="not submit_txt" src="/payment_midtrans/static/src/img/midtrans_icon.png"/>
+          <span t-if="submit_txt"><t t-esc="submit_txt"/> <span class="fa fa-long-arrow-right"/></span>
+          <i class="fa fa-spinner fa-spin hidden"/>
+        </button>
+        <script t-att-src="snap_js_url" t-att-data-client-key="client_key"></script>
+        <script><![CDATA[
+odoo.payment_midtrans.attach('#midtrans-payment-button');
+]]></script>
+      </form>
+    </template>
+
+    <template id="midtrans_assets" inherit_id="website.assets_frontend">
+      <xpath expr="." position="inside">
+        <script type="text/javascript" src="/payment_midtrans/static/src/js/main.js"></script>
+      </xpath>
+    </template>
+  </data>
+</odoo>
