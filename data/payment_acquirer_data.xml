@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-  <data noupdate="1">
+  <data>
     <record id="payment.payment_acquirer_midtrans" model="payment.acquirer">
       <field name="name">Midtrans</field>
       <field name="image" type="base64" file="payment_midtrans/static/src/img/midtrans_icon.png"/>

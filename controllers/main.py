@@ -4,7 +4,9 @@ from odoo.exceptions import ValidationError
 from odoo import http
 from odoo.http import request
 from odoo.tools import html_escape
+import pprint
 import requests
+import werkzeug
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,12 @@ class MidtransController(http.Controller):
 
         acquirer = request.env['payment.acquirer'].browse(acquirer_id)
         currency = request.env['res.currency'].browse(currency_id)
+        currency_IDR = request.env['res.currency'].search([('name', '=',
+                'IDR')], limit=1)
+
+        assert currency_IDR.name == 'IDR'
+        amount_IDR = int(round(currency.compute(amount, currency_IDR)))
+
         order = request.website.sale_get_order()
 
         response = {
@@ -57,6 +65,7 @@ class MidtransController(http.Controller):
             'order_reference': order.name,
             'amount': amount,
             'currency_id': currency_id,
+            'amount_IDR': amount_IDR,
         }
 
         headers = {
@@ -65,7 +74,7 @@ class MidtransController(http.Controller):
         payload = {
             'transaction_details': {
                 'order_id': order.name,
-                'gross_amount': amount,
+                'gross_amount': amount_IDR,
             },
             'customer_details': {
                 'first_name': post.get('partner_first_name'),
