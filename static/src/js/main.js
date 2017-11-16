@@ -19,11 +19,20 @@ odoo.define('payment.acquirer.midtrans', function(require)
         }
     }
 
+    function get_form_data($el)
+    {
+        return $el.serializeArray().reduce(
+                function(m,e){m[e.name] = e.value; return m;}, {});
+    }
+
     function attach_event_listener(selector)
     {
         var $btn = $(selector),
+            $form = $btn.parents('form'),
             $acquirer = $btn.closest('div.oe_sale_acquirer_button,div.oe_quote_acquirer_button,div.o_website_payment_new_payment'),
             acquirer_id = $acquirer.data('id') || $acquirer.data('acquirer_id');
+
+        console.log('midtrans::attach_event_listener');
 
         if (!acquirer_id)
         {
@@ -37,97 +46,111 @@ odoo.define('payment.acquirer.midtrans', function(require)
             event.stopPropagation();
             set_state_busy($btn, true);
             
-            var formData = $btn.parents('form').serializeArray().reduce(
-                    function(m,e){m[e.name] = e.value; return m;}, {});
+            var promise,
+                formData = get_form_data($form);
 
-            formData['acquirer_id'] = acquirer_id
-            formData['amount'] = parseFloat(formData['amount'])
+            console.log(formData);
 
-            session.rpc('/midtrans/get_token', formData).then(function(response)
+            if ($('.o_website_payment').length !== 0)
             {
-                if (response.snap_errors)
-                {
-                    alert(response.snap_errors.join('\n'));
-                    set_state_busy($btn, false);
-                    return;
-                }
+                promise = session.rpc(
+                    '/website_payment/transaction',
+                    {
+                        reference: formData['reference'],
+                        amount: formData['amount'],
+                        currency_id: formData['currency_id'],
+                        acquirer_id: acquirer_id,
+                    })
 
-                // order_reference in response is order_id in midtrans's reply
-                // order_id in response is primary key of model sale.order
-                console.log(response);
-
-                var promise;
-
-                if ($('.o_website_payment').length !== 0)
-                {
-                    promise = session.rpc('/website_payment/transaction', {
-                        reference: response.order_reference,
-                        amount: response.amount,
-                        currency_id: response.currency_id,
-                        acquirer_id: response.acquirer_id,
-
+                    .then(function()
+                    {
+                        return formData;
                     });
-                }
-                else
+            }
+            else
+            {
+                promise = session.rpc(
+                    '/shop/payment/transaction/' + acquirer_id,
+                    {
+                        so_id: formData['order_id'],
+                    },
+                    {'async': false})
+
+                    .then(function(html)
+                    {
+                        return get_form_data($(html));
+                    });
+            }
+
+            promise
+                .then(function(data)
                 {
-                    promise = session.rpc('/shop/payment/transaction/' +
-                            response.acquirer_id, {
-
-                        so_id: response.order_id,
-
-                    }, {'async': false});
-                }
-
-                promise.then(function()
+                    data['acquirer_id'] = acquirer_id;
+                    console.log(data);
+                    return session.rpc('/midtrans/get_token', data);
+                })
+                .then(function(response)
                 {
-                    console.log(arguments);
+                    console.log(response);
+
+                    if (response.snap_errors)
+                    {
+                        alert(response.snap_errors.join('\n'));
+                        set_state_busy($btn, false);
+                        return;
+                    }
 
                     snap.pay(response.snap_token,
                     {
                         onSuccess: function(result)
                         {
+                            console.log('success');
+                            console.log(result);
                             session.rpc('/midtrans/validate', {
-                                order_id: result.order_id,
+                                reference: result.order_id,
                                 transaction_status: 'done',
+                                message: result.status_message,
 
                             }).then(function()
                             {
-                                window.location = '/shop/confirmation';
+                                window.location = response.return_url;
                             });
                         },
                         onPending: function(result)
                         {
+                            console.log('pending');
+                            console.log(result);
                             session.rpc('/midtrans/validate', {
-                                order_id: result.order_id,
+                                reference: result.order_id,
                                 transaction_status: 'pending',
+                                message: result.status_message,
 
                             }).then(function()
                             {
-                                window.location = '/shop/confirmation';
+                                window.location = response.return_url;
                             });
                         },
                         onError: function(result)
                         {
+                            console.log('error');
+                            console.log(result);
                             session.rpc('/midtrans/validate', {
-                                order_id: result.order_id,
+                                reference: result.order_id,
                                 transaction_status: 'error',
+                                message: result.status_message,
 
                             }).then(function()
                             {
-                                window.location = '/shop/confirmation';
+                                window.location = response.return_url;
                             });
                         },
                     });
-                }, function(error)
+                },
+                function(error)
                 {
                     set_state_busy($btn, false);
                     console.log(error);
                 });
-            }, function(error)
-            {
-                set_state_busy($btn, false);
-                console.log(error);
-            });
         });
     }
 

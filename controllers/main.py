@@ -31,6 +31,15 @@ class MidtransController(http.Controller):
         except (ValueError, TypeError):
             raise ValidationError('Invalid acquirer_id.')
 
+        order_id = post.get('order_id')
+        if not order_id:
+            raise ValidationError('order_id is required.')
+
+        try:
+            order_id = int(order_id)
+        except (ValueError, TypeError):
+            raise ValidationError('Invalid order_id.')
+
         amount = post.get('amount')
         if not amount:
             raise ValidationError('amount is required.')
@@ -40,32 +49,19 @@ class MidtransController(http.Controller):
         except (ValueError, TypeError):
             raise ValidationError('Invalid amount.')
 
-        currency_id = post.get('currency_id')
-        if not currency_id:
-            raise ValidationError('currency_id is required.')
+        reference = post.get('reference')
+        if not reference:
+            raise ValidationError('reference is required.')
 
-        try:
-            currency_id = int(currency_id)
-        except (ValueError, TypeError):
-            raise ValidationError('Invalid currency_id.')
+        return_url = post.get('return_url')
+        if not return_url:
+            raise ValidationError('return_url is required.')
 
         acquirer = request.env['payment.acquirer'].browse(acquirer_id)
-        currency = request.env['res.currency'].browse(currency_id)
-        currency_IDR = request.env['res.currency'].search([('name', '=',
-                'IDR')], limit=1)
-
-        assert currency_IDR.name == 'IDR'
-        amount_IDR = int(round(currency.compute(amount, currency_IDR)))
-
-        order = request.website.sale_get_order()
+        order = request.env['sale.order'].browse(order_id)
 
         response = {
-            'acquirer_id': acquirer_id,
-            'order_id': order.id,
-            'order_reference': order.name,
-            'amount': amount,
-            'currency_id': currency_id,
-            'amount_IDR': amount_IDR,
+            'return_url': return_url,
         }
 
         headers = {
@@ -73,8 +69,8 @@ class MidtransController(http.Controller):
         }
         payload = {
             'transaction_details': {
-                'order_id': order.name,
-                'gross_amount': amount_IDR,
+                'order_id': reference,
+                'gross_amount': amount,
             },
             'customer_details': {
                 'first_name': post.get('partner_first_name'),
@@ -118,22 +114,29 @@ class MidtransController(http.Controller):
 
     @http.route('/midtrans/validate', auth='public', type='json')
     def payment_validate(self, **post):
-        # transaction_details.order_id in Midtrans request/response is
-        # order.name or payment.transaction.reference
-        logger.error(repr(post))
-        print(repr(post))
-        order_id = post.get('order_id')
-        if not order_id:
-            raise ValidationError('order_id is required.')
+        reference = post.get('reference')
+        if not reference:
+            raise ValidationError('reference is required.')
 
         status = post.get('transaction_status')
         if not status:
             raise ValidationError('transaction_status is required.')
 
-        tx = request.env['payment.transaction'].search([('reference', '=',
-                order_id)])
+        message = post.get('message')
+        if not message:
+            raise ValidationError('message is required.')
 
-        tx.write({'state': status})
+        tx = request.env['payment.transaction'].search([('reference', '=',
+                reference)], limit=1)
+
+        tx.write({'state': status, 'state_message': message})
+
+        order = tx.sale_order_id
+
+        if status == 'done':
+            order.write({'state': 'done'})
+        elif status == 'pending':
+            order.write({'state': 'sale'})
 
 
     @http.route('/midtrans/notification', auth='public', methods=('post',), csrf=False, type='json')

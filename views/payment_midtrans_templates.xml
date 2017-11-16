@@ -5,8 +5,11 @@
       <form t-if="acquirer.midtrans_server_key" t-att-action="tx_url" method="post" target="_self">
         <input type="hidden" name="csrf_token"
             t-att-value="request.csrf_token()"/> 
+        <input type="hidden" name="reference" t-att-value="reference"/>
+        <input type="hidden" name="order_id" t-att-value="order.id"/>
         <input type="hidden" name="amount" t-att-value="amount"/>
         <input type="hidden" name="currency_id" t-att-value="currency.id"/>
+        <input type="hidden" name='return_url' t-att-value='return_url'/>
         <input type="hidden" name="partner_first_name"
             t-att-value="partner_first_name"/>
         <input type="hidden" name="partner_last_name"

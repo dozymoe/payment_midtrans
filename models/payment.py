@@ -6,7 +6,7 @@ from odoo import api, fields, models
 from odoo.addons.payment.models.payment_acquirer import ValidationError
 from odoo.http import request
 #from odoo.addons.payment_midtrans.controllers.main import MidtransController
-from odoo.tools.float_utils import float_compare
+from odoo.tools import float_round
 import requests
 import urlparse
 from dateutil.parser import parse as dateparse
@@ -42,6 +42,30 @@ class AcquirerMidtrans(models.Model):
             values['snap_js_url'] = 'https://app.sandbox.midtrans.com/snap/snap.js'
         else:
             values['snap_js_url'] = 'https://app.midtrans.com/snap/snap.js'
+
+        if not 'return_url' in values:
+            values['return_url'] = '/'
+
+        values['order'] = request.website.sale_get_order()
+
+        amount = values['amount']
+        currency = values['currency']
+
+        # You must have currency IDR enabled
+        currency_IDR = self.env['res.currency'].search([('name', '=',
+                'IDR')], limit=1)
+
+        assert currency_IDR.name == 'IDR'
+
+        # Convert to IDR
+        if currency.id != currency_IDR.id:
+            values['amount'] = int(round(currency.compute(amount,
+                    currency_IDR)))
+
+            values['currency'] = currency_IDR
+            values['currency_id'] = currency_IDR.id
+        else:
+            values['amount'] = int(round(amount))
 
         return values
 
