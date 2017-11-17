@@ -32,8 +32,6 @@ odoo.define('payment.acquirer.midtrans', function(require)
             $acquirer = $btn.closest('div.oe_sale_acquirer_button,div.oe_quote_acquirer_button,div.o_website_payment_new_payment'),
             acquirer_id = $acquirer.data('id') || $acquirer.data('acquirer_id');
 
-        console.log('midtrans::attach_event_listener');
-
         if (!acquirer_id)
         {
             alert('payment_midtrans got invalid acquirer_id');
@@ -48,8 +46,6 @@ odoo.define('payment.acquirer.midtrans', function(require)
             
             var promise,
                 formData = get_form_data($form);
-
-            console.log(formData);
 
             if ($('.o_website_payment').length !== 0)
             {
@@ -86,13 +82,10 @@ odoo.define('payment.acquirer.midtrans', function(require)
                 .then(function(data)
                 {
                     data['acquirer_id'] = acquirer_id;
-                    console.log(data);
                     return session.rpc('/midtrans/get_token', data);
                 })
                 .then(function(response)
                 {
-                    console.log(response);
-
                     if (response.snap_errors)
                     {
                         alert(response.snap_errors.join('\n'));
@@ -104,8 +97,6 @@ odoo.define('payment.acquirer.midtrans', function(require)
                     {
                         onSuccess: function(result)
                         {
-                            console.log('success');
-                            console.log(result);
                             session.rpc('/midtrans/validate', {
                                 reference: result.order_id,
                                 transaction_status: 'done',
@@ -118,8 +109,6 @@ odoo.define('payment.acquirer.midtrans', function(require)
                         },
                         onPending: function(result)
                         {
-                            console.log('pending');
-                            console.log(result);
                             session.rpc('/midtrans/validate', {
                                 reference: result.order_id,
                                 transaction_status: 'pending',
@@ -132,8 +121,6 @@ odoo.define('payment.acquirer.midtrans', function(require)
                         },
                         onError: function(result)
                         {
-                            console.log('error');
-                            console.log(result);
                             session.rpc('/midtrans/validate', {
                                 reference: result.order_id,
                                 transaction_status: 'error',
