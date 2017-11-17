@@ -131,6 +131,10 @@ odoo.define('payment.acquirer.midtrans', function(require)
                                 window.location = response.return_url;
                             });
                         },
+                        onClose: function()
+                        {
+                            set_state_busy($btn, false);
+                        },
                     });
                 },
                 function(error)
