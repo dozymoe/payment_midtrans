@@ -1,3 +1,4 @@
+from hashlib import sha512
 import json
 import logging
 from odoo.exceptions import ValidationError
@@ -20,7 +21,7 @@ def _prune_dict(data):
 
 class MidtransController(http.Controller):
 
-    @http.route('/midtrans/get_token', auth='public', type='json', website=True)
+    @http.route('/midtrans/get_token', auth='user', type='json')
     def get_token(self, **post):
         acquirer_id = post.get('acquirer_id')
         if not acquirer_id:
@@ -112,8 +113,10 @@ class MidtransController(http.Controller):
         return response
 
 
-    @http.route('/midtrans/validate', auth='public', type='json')
+    @http.route('/midtrans/validate', auth='user', type='json')
     def payment_validate(self, **post):
+        logger.error(repr(post))
+
         reference = post.get('reference')
         if not reference:
             raise ValidationError('reference is required.')
@@ -129,23 +132,87 @@ class MidtransController(http.Controller):
         tx = request.env['payment.transaction'].search([('reference', '=',
                 reference)], limit=1)
 
-        tx.write({'state': status, 'state_message': message})
+        if (status == 'pending' and tx.state == 'draft') or\
+                (status == 'done' and tx.state != 'done') or\
+                status == 'error':
+
+            tx.write({'state': status, 'state_message': message})
+
+        order = tx.sale_order_id
+
+        if status == 'done' and order.state != 'done':
+            order.write({'state': 'done'})
+        elif status == 'pending' and order.state not in ('done', 'sale'):
+            order.write({'state': 'sale'})
+
+
+    @http.route('/midtrans/notification', auth='none', csrf=False, type='json')
+    def midtrans_notification(self, **post):
+        logger.error(repr(post))
+
+        reference = post.get('order_id')
+        if not reference:
+            raise ValidationError('order_id is required.')
+
+        code = post.get('status_code')
+        if not code:
+            raise ValidationError('status_code is required.')
+
+        tx_status = post.get('transaction_status')
+        if not tx_status:
+            raise ValidationError('transaction_status is required.')
+
+        if code == '200':
+            if tx_status in ('settlement', 'refund', 'chargeback',
+                    'partial_refund', 'partial_chargeback'):
+
+                status = 'done'
+
+            elif tx_status in ('cancel',):
+                status = 'cancel'
+
+            else:
+                status = 'pending'
+        elif code == '201':
+            status = 'pending'
+        else:
+            status = 'error'
+
+        message = post.get('status_message')
+        if not message:
+            raise ValidationError('status_message is required.')
+
+        tx = request.env['payment.transaction'].search([('reference', '=',
+                reference)], limit=1)
+
+        ## Security check
+
+        acquirer = tx.acquirer_id
+        signature_data = post['order_id'] + post['status_code'] +\
+                post['gross_amount'] + acquirer.midtrans_server_key
+
+        assert post['signature_key'] == sha512(signature_data).hexdigest()
+
+        ## Update database
+
+        if (status == 'pending' and tx.state in ('draft', 'pending')) or\
+                status in ('done', 'error', 'cancel'):
+
+            tx.write({'state': status, 'state_message': message})
 
         order = tx.sale_order_id
 
         if status == 'done':
             order.write({'state': 'done'})
-        elif status == 'pending':
+        elif status == 'pending' and order.state not in ('done',):
             order.write({'state': 'sale'})
+        elif status in ('cancel', 'error'):
+            order.write({'state': 'draft'})
+
+        return {}
 
 
-    @http.route('/midtrans/notification', auth='public', methods=('post',), csrf=False, type='json')
-    def midtrans_notification(self, **post):
-        logger.error(repr(post))
-        print(repr(post))
-
-
-    @http.route('/midtrans/callback', auth='public', methods=('post',), csrf=False, type='json')
+    @http.route('/midtrans/callback', auth='none', csrf=False, type='json')
     def midtrans_callback(self, **post):
         logger.error(repr(post))
-        print(repr(post))
+        return {}
