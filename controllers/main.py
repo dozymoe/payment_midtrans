@@ -58,8 +58,8 @@ class MidtransController(http.Controller):
         if not return_url:
             raise ValidationError('return_url is required.')
 
-        acquirer = request.env['payment.acquirer'].browse(acquirer_id)
-        order = request.env['sale.order'].browse(order_id)
+        acquirer = request.env['payment.acquirer'].sudo().browse(acquirer_id)
+        order = request.env['sale.order'].sudo().browse(order_id)
 
         response = {
             'return_url': return_url,
@@ -129,8 +129,8 @@ class MidtransController(http.Controller):
         if not message:
             raise ValidationError('message is required.')
 
-        tx = request.env['payment.transaction'].search([('reference', '=',
-                reference)], limit=1)
+        tx = request.env['payment.transaction'].sudo().search([
+                ('reference', '=', reference)], limit=1)
 
         if (status == 'pending' and tx.state == 'draft') or\
                 (status == 'done' and tx.state != 'done') or\
@@ -182,8 +182,8 @@ class MidtransController(http.Controller):
         if not message:
             raise ValidationError('status_message is required.')
 
-        tx = request.env['payment.transaction'].search([('reference', '=',
-                reference)], limit=1)
+        tx = request.env['payment.transaction'].sudo().search([
+                ('reference', '=', reference)], limit=1)
 
         ## Security check
 
@@ -209,10 +209,4 @@ class MidtransController(http.Controller):
         elif status in ('cancel', 'error'):
             order.write({'state': 'draft'})
 
-        return {}
-
-
-    @http.route('/midtrans/callback', auth='none', csrf=False, type='json')
-    def midtrans_callback(self, **post):
-        logger.error(repr(post))
         return {}
